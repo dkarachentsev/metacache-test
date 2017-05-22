@@ -89,7 +89,9 @@ def launch(proj_dir, main_class, params=[], nonblocking=False, instances=1):
         cmd += " -D" + p
 
     cmd += " " + main_class
-    cmd += " > /tmp/ignite/out.log 2>&1"
+    cmd += " >> /tmp/ignite/out.log 2>&1"
+
+    call_cmd("rm /tmp/ignite/out.log")
 
     for i in range(instances):
         if nonblocking:
@@ -114,12 +116,12 @@ def upload(file):
 
 def remote_exec(cmd, nonblocking=True):
     for ip in PUB_IPS:
-        cmd = "ssh -i " + PKEY_PATH + " ubuntu@" + ip + " \"" + cmd + "\""
+        rmtcmd = "ssh -i " + PKEY_PATH + " ubuntu@" + ip + " \"" + cmd + "\""
 
         if nonblocking:
-            popen_cmd(cmd)
+            popen_cmd(rmtcmd)
         else:
-            call_cmd("ssh -i " + PKEY_PATH + " ubuntu@" + ip + " \"" + cmd + "\"")
+            call_cmd(rmtcmd)
 
 
 # Script #
