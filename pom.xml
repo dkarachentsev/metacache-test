@@ -20,7 +20,7 @@
             <url>http://www.gridgainsystems.com/nexus/content/repositories/gridgain_staging-2119/</url>
         </repository>
         <repository>
-            <id>gridgain-staging</id>
+            <id>gridgain-staging2</id>
             <url>http://www.gridgainsystems.com/nexus/content/repositories/gridgain_staging-2124/</url>
         </repository>
     </repositories>
