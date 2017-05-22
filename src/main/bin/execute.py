@@ -92,6 +92,7 @@ def launch(proj_dir, main_class, params=[], nonblocking=False, instances=1):
     cmd += " >> /tmp/ignite/out.log 2>&1"
 
     call_cmd("rm /tmp/ignite/out.log")
+    call_cmd("mkdir /tmp/ignite")
 
     for i in range(instances):
         if nonblocking:
