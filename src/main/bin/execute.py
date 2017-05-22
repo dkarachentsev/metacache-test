@@ -26,7 +26,7 @@ parser.add_argument('--pkey', dest='pkey', required=False, help='path to private
 parser.add_argument('--start', dest='start', action='store_true', help='start test')
 parser.add_argument('--launch-only', dest='launch_only', action='store_true', help='just launch tests without cloning and building')
 parser.add_argument('--blocking', dest='blocking', action='store_true', help='launch and wait for test finish')
-parser.add_argument('--instances', dest='instances', nargs=1, type=int, help='number of jvm\'s')
+parser.add_argument('--instances', dest='instances', type=int, help='number of jvm\'s')
 parser.add_argument('--kill', dest='kill', action='store_true', help='stop all nodes')
 parser.add_argument('--kill-rmt', dest='kill_rmt', action='store_true', help='stop all nodes remotely')
 
@@ -37,7 +37,8 @@ PUB_IPS = args.pub_ips
 START = args.start
 EXECUTABLE_JAR = "metacache-test-1.0-SNAPSHOT.jar"
 INSTANCES = args.instances
-NONBLOCKING = args.blocking
+NONBLOCKING = not args.blocking
+PRIVATE_IPS = "172.31.28.104:47500..47599"
 
 if INSTANCES is None:
     INSTANCES = 1
@@ -134,7 +135,7 @@ if not START:
 
 if not START:
     upload(CUR_FILE_PATH)
-    remote_exec("/home/ubuntu/" + CUR_FILE_NAME + " --start")
+    remote_exec("/home/ubuntu/" + CUR_FILE_NAME + " --start " + "--instances " + INSTANCES)
     # remote_exec("pwd")
 else:
     repo_dir = os.path.expanduser("/tmp/repo")
@@ -143,7 +144,7 @@ else:
     build(proj_dir)
     launch(proj_dir,
            "org.apache.ignite.ComputeNode",
-           ["IGNITE_TEST_IPS=127.0.0.1:47500..47599"],
+           ["IGNITE_TEST_IPS=" + PRIVATE_IPS],
            nonblocking=NONBLOCKING,
            instances=INSTANCES)
 
