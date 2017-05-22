@@ -135,7 +135,7 @@ if not START:
 
 if not START:
     upload(CUR_FILE_PATH)
-    remote_exec("/home/ubuntu/" + CUR_FILE_NAME + " --start " + "--instances " + INSTANCES)
+    remote_exec("/home/ubuntu/" + CUR_FILE_NAME + " --start " + "--instances " + str(INSTANCES))
     # remote_exec("pwd")
 else:
     repo_dir = os.path.expanduser("/tmp/repo")
