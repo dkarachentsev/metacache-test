@@ -11,13 +11,17 @@
     <properties>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
-        <ignite.version>1.8.6.b1</ignite.version>
+        <ignite.version>1.7.6.b1</ignite.version>
     </properties>
 
     <repositories>
         <repository>
             <id>gridgain-staging</id>
             <url>http://www.gridgainsystems.com/nexus/content/repositories/gridgain_staging-2119/</url>
+        </repository>
+        <repository>
+            <id>gridgain-staging</id>
+            <url>http://www.gridgainsystems.com/nexus/content/repositories/gridgain_staging-2124/</url>
         </repository>
     </repositories>
 
