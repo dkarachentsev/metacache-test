@@ -39,7 +39,7 @@ START = args.start
 EXECUTABLE_JAR = "metacache-test-1.0-SNAPSHOT.jar"
 INSTANCES = args.instances
 NONBLOCKING = not args.blocking
-PRIVATE_IPS = "172.31.28.104:47500..47599"
+PRIVATE_IPS = "172.31.28.104:47500..47599,172.31.16.243:47500..47599,172.31.27.56:47500..47599,172.31.4.217:47500..47599,172.31.9.71:47500..47599"
 LAUNCH_ONLY = args.launch_only
 BUILD_ONLY = args.build_only
 
@@ -134,8 +134,7 @@ if args.kill:
     exit(0)
 
 if args.kill_rmt:
-    remote_exec("pkill -f ComputeNode", nonblocking=False)
-    remote_exec("pkill -f SubmitterNode", nonblocking=False)
+    remote_exec("pkill -f ComputeNode && pkill -f SubmitterNode", nonblocking=False)
     exit(0)
 
 if not START:
@@ -157,6 +156,9 @@ if not START:
 
     if LAUNCH_ONLY:
         cmd += " --launch-only"
+
+    if BUILD_ONLY:
+        cmd += " --build-only"
 
     remote_exec(cmd, nonblocking=True)
 
