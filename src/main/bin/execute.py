@@ -69,7 +69,7 @@ def chback():
 
 def build(proj_dir):
     chdir(proj_dir)
-    call_cmd("mvn clean package")
+    call_cmd("mvn clean package -DskipTests")
     chback()
 
 
