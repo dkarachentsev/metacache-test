@@ -25,6 +25,7 @@ parser.add_argument('--priv-ips', dest='priv_ips', nargs='*', required=False, me
 parser.add_argument('--pkey', dest='pkey', required=False, help='path to private SSH key')
 parser.add_argument('--start', dest='start', action='store_true', help='start test')
 parser.add_argument('--launch-only', dest='launch_only', action='store_true', help='just launch tests without cloning and building')
+parser.add_argument('--build-only', dest='build_only', action='store_true', help='just builds tests')
 parser.add_argument('--blocking', dest='blocking', action='store_true', help='launch and wait for test finish')
 parser.add_argument('--instances', dest='instances', type=int, help='number of jvm\'s')
 parser.add_argument('--kill', dest='kill', action='store_true', help='stop all nodes')
@@ -39,9 +40,15 @@ EXECUTABLE_JAR = "metacache-test-1.0-SNAPSHOT.jar"
 INSTANCES = args.instances
 NONBLOCKING = not args.blocking
 PRIVATE_IPS = "172.31.28.104:47500..47599"
+LAUNCH_ONLY = args.launch_only
+BUILD_ONLY = args.build_only
 
 if INSTANCES is None:
     INSTANCES = 1
+
+if LAUNCH_ONLY and BUILD_ONLY:
+    print "either --launch-only or --build-only"
+    exit(1)
 
 # Functions #
 
@@ -82,6 +89,7 @@ def launch(proj_dir, main_class, params=[], nonblocking=False, instances=1):
         cmd += " -D" + p
 
     cmd += " " + main_class
+    cmd += " > /tmp/ignite/out.log 2>&1"
 
     for i in range(instances):
         if nonblocking:
@@ -104,9 +112,14 @@ def upload(file):
         call_cmd("scp -i " + PKEY_PATH + " " + file + " ubuntu@" + ip + ":/home/ubuntu/")
 
 
-def remote_exec(cmd):
+def remote_exec(cmd, nonblocking=True):
     for ip in PUB_IPS:
-        call_cmd("ssh -i " + PKEY_PATH + " ubuntu@" + ip + " \"" + cmd + "\"")
+        cmd = "ssh -i " + PKEY_PATH + " ubuntu@" + ip + " \"" + cmd + "\""
+
+        if nonblocking:
+            popen_cmd(cmd)
+        else:
+            call_cmd("ssh -i " + PKEY_PATH + " ubuntu@" + ip + " \"" + cmd + "\"")
 
 
 # Script #
@@ -119,8 +132,8 @@ if args.kill:
     exit(0)
 
 if args.kill_rmt:
-    remote_exec("pkill -f ComputeNode")
-    remote_exec("pkill -f SubmitterNode")
+    remote_exec("pkill -f ComputeNode", nonblocking=False)
+    remote_exec("pkill -f SubmitterNode", nonblocking=False)
     exit(0)
 
 if not START:
@@ -135,17 +148,29 @@ if not START:
 
 if not START:
     upload(CUR_FILE_PATH)
-    remote_exec("/home/ubuntu/" + CUR_FILE_NAME + " --start " + "--instances " + str(INSTANCES))
-    # remote_exec("pwd")
+    cmd = "/home/ubuntu/" + CUR_FILE_NAME + " --start "
+
+    if INSTANCES:
+        cmd += "--instances " + str(INSTANCES)
+
+    if LAUNCH_ONLY:
+        cmd += " --launch-only"
+
+    remote_exec(cmd, nonblocking=True)
+
 else:
     repo_dir = os.path.expanduser("/tmp/repo")
-    clone(repo_dir)
     proj_dir = repo_dir + "/" + REPO_DIR_NAME
-    build(proj_dir)
-    launch(proj_dir,
-           "org.apache.ignite.ComputeNode",
-           ["IGNITE_TEST_IPS=" + PRIVATE_IPS],
-           nonblocking=NONBLOCKING,
-           instances=INSTANCES)
+
+    if not LAUNCH_ONLY:
+        clone(repo_dir)
+        build(proj_dir)
+
+    if not BUILD_ONLY:
+        launch(proj_dir,
+               "org.apache.ignite.ComputeNode",
+               ["IGNITE_TEST_IPS=" + PRIVATE_IPS],
+               nonblocking=NONBLOCKING,
+               instances=INSTANCES)
 
 
