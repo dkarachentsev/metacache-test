@@ -25,7 +25,7 @@ public class SubmitterNode {
         for (int i = 0; i < 400_000; i++) {
             compute.call(new TestCallable(new Bean1(String.valueOf(i), String.valueOf(i), i)));
 
-            futs.add(compute.future());
+            futs.add(compute.<Response>future());
         }
 
         for (IgniteFuture<Response> fut : futs)
