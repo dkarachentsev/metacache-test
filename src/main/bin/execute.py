@@ -30,6 +30,8 @@ parser.add_argument('--blocking', dest='blocking', action='store_true', help='la
 parser.add_argument('--instances', dest='instances', type=int, help='number of jvm\'s')
 parser.add_argument('--kill', dest='kill', action='store_true', help='stop all nodes')
 parser.add_argument('--kill-rmt', dest='kill_rmt', action='store_true', help='stop all nodes remotely')
+parser.add_argument('--get-logs', dest='get_logs', action='store_true', help='get all logs')
+parser.add_argument('--mvn-override', dest='mvn_override', nargs="*", help='override maven properties')
 
 args = parser.parse_args()
 
@@ -39,9 +41,15 @@ START = args.start
 EXECUTABLE_JAR = "metacache-test-1.0-SNAPSHOT.jar"
 INSTANCES = args.instances
 NONBLOCKING = not args.blocking
-PRIVATE_IPS = "172.31.28.104:47500..47599,172.31.16.243:47500..47599,172.31.27.56:47500..47599,172.31.4.217:47500..47599,172.31.9.71:47500..47599"
+PRIVATE_IPS = args.priv_ips
 LAUNCH_ONLY = args.launch_only
 BUILD_ONLY = args.build_only
+REMOTE_USER = "ubuntu"
+GET_LOGS = args.get_logs
+
+if PRIVATE_IPS:
+    PRIVATE_IPS = ':47500..47599,'.join(PRIVATE_IPS)
+    PRIVATE_IPS += ":47500..47599"
 
 if INSTANCES is None:
     INSTANCES = 1
@@ -74,9 +82,14 @@ def chback():
     os.chdir(ORIGDIR)
 
 
-def build(proj_dir):
+def build(proj_dir, overrides=[]):
     chdir(proj_dir)
-    call_cmd("mvn clean package -DskipTests")
+    cmd = "mvn clean package -DskipTests"
+
+    for over in overrides:
+        cmd += " -D" + over
+
+    call_cmd(cmd)
     chback()
 
 
@@ -112,7 +125,14 @@ def clone(dirname):
 
 def upload(file):
     for ip in PUB_IPS:
-        call_cmd("scp -i " + PKEY_PATH + " " + file + " ubuntu@" + ip + ":/home/ubuntu/")
+        call_cmd("scp -i " + PKEY_PATH + " " + file + " -C " + REMOTE_USER + "@" + ip + ":/home/ubuntu/")
+
+
+def download(src, dst):
+    for ip in PUB_IPS:
+        dir = dst + "/" + ip
+        call_cmd("mkdir -p " + dir)
+        call_cmd("scp -i " + PKEY_PATH + " -C " + REMOTE_USER + "@" + ip + ":" + src + " " + dir)
 
 
 def remote_exec(cmd, nonblocking=True):
@@ -138,6 +158,10 @@ if args.kill_rmt:
     remote_exec("pkill -f ComputeNode && pkill -f SubmitterNode", nonblocking=False)
     exit(0)
 
+if GET_LOGS:
+    download("/tmp/ignite/out.log", ".")
+    exit(0)
+
 if not START:
     print args.start
     if PKEY_PATH is None:
@@ -161,6 +185,12 @@ if not START:
     if BUILD_ONLY:
         cmd += " --build-only"
 
+    if args.priv_ips:
+        cmd += " --priv-ips " + ' '.join(args.priv_ips)
+
+    if args.mvn_override:
+        cmd += " --mvn-override " + ' '.join(args.mvn_override)
+
     remote_exec(cmd, nonblocking=True)
 
 else:
@@ -169,7 +199,12 @@ else:
 
     if not LAUNCH_ONLY:
         clone(repo_dir)
-        build(proj_dir)
+        over = []
+
+        if args.mvn_override:
+            over = args.mvn_override
+
+        build(proj_dir, over)
 
     if not BUILD_ONLY:
         launch(proj_dir,
