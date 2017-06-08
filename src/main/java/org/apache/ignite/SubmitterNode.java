@@ -3,8 +3,12 @@ package org.apache.ignite;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.ignite.cluster.ClusterGroup;
+import org.apache.ignite.events.DiscoveryEvent;
+import org.apache.ignite.events.Event;
+import org.apache.ignite.events.EventType;
 import org.apache.ignite.lang.IgniteCallable;
 import org.apache.ignite.lang.IgniteFuture;
+import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.lang.IgniteRunnable;
 
 /**
@@ -12,32 +16,70 @@ import org.apache.ignite.lang.IgniteRunnable;
  */
 public class SubmitterNode {
     public static void main(String[] args) throws InterruptedException {
-        Ignite ignite = Ignition.start(Configuration.getConfiguration(true));
+        final int topSize = Integer.parseInt(args[0]);
+        final int pause = Integer.parseInt(args[1]);
+        final int jobs = Integer.parseInt(args[2]);
 
-        ClusterGroup computeGrp = ignite.cluster().forAttribute("submitter", false);
+        final Ignite ignite = Ignition.start(Configuration.getConfiguration(true));
 
-        IgniteCompute compute = ignite.compute(computeGrp).withAsync();
+        ignite.events().enableLocal(EventType.EVT_NODE_JOINED);
+        ignite.events().localListen(new IgnitePredicate<Event>() {
+            @Override public boolean apply(Event evt) {
+                DiscoveryEvent discoEvt = (DiscoveryEvent)evt;
 
-        List<IgniteFuture<Response>> futs = new ArrayList<>();
+                final int size = discoEvt.topologyNodes().size();
 
-        Thread.sleep(10 * 1000);
+                if (topSize == size) {
+                    new Thread() {
+                        @Override public void run() {
+                            IgniteCompute compute = null;
 
-        for (int i = 0; i < 400_000; i++) {
-            compute.call(new TestCallable(new Bean1(String.valueOf(i), String.valueOf(i), i)));
+                            try {
+                                ClusterGroup computeGrp = ignite.cluster().forAttribute("submitter", false);
 
-            futs.add(compute.<Response>future());
-        }
+                                compute = ignite.compute(computeGrp).withAsync();
 
-        for (IgniteFuture<Response> fut : futs)
-            fut.get();
+                                List<IgniteFuture<Response>> futs = new ArrayList<>();
 
-        compute.broadcast(new IgniteRunnable() {
-            @Override public void run() {
-                Ignition.localIgnite().close();
+                                Thread.sleep(pause);
+
+                                ignite.log().info("== Started submission, topSize=" + size
+                                    + ", pause=" + pause + ", jobs=" + jobs);
+
+                                for (int i = 0; i < jobs; i++) {
+                                    compute.call(new TestCallable(new Bean1(String.valueOf(i), String.valueOf(i), i)));
+
+                                    futs.add(compute.<Response>future());
+                                }
+
+                                for (IgniteFuture<Response> fut : futs)
+                                    fut.get();
+                            }
+                            catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                            finally {
+                                if (compute != null) {
+                                    compute.broadcast(new IgniteRunnable() {
+                                        @Override public void run() {
+                                            Ignition.localIgnite().close();
+                                        }
+                                    });
+
+                                    ignite.close();
+                                }
+
+                            }
+
+                        }
+                    }.start();
+
+                    return false;
+                }
+
+                return true;
             }
-        });
-
-        ignite.close();
+        }, EventType.EVT_NODE_JOINED);
     }
 
     /**
@@ -102,4 +144,5 @@ public class SubmitterNode {
             this.fld = fld;
         }
     }
+
 }

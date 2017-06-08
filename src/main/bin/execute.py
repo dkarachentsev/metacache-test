@@ -15,7 +15,6 @@ CUR_FILE_PATH = os.path.abspath(__file__)
 CUR_FILE_NAME = os.path.basename(__file__)
 REPO_URL = 'https://github.com/dkarachentsev/metacache-test.git'
 REPO_DIR_NAME = 'metacache-test'
-# PKEY_PATH = '/home/xmitya/work/keys/aws/dkarachentsev.pem'
 PROJ_DIR = '../../..'
 ORIGDIR = os.getcwd()
 
@@ -28,6 +27,10 @@ parser.add_argument('--launch-only', dest='launch_only', action='store_true', he
 parser.add_argument('--build-only', dest='build_only', action='store_true', help='just builds tests')
 parser.add_argument('--blocking', dest='blocking', action='store_true', help='launch and wait for test finish')
 parser.add_argument('--instances', dest='instances', type=int, help='number of jvm\'s')
+parser.add_argument('--top-size', dest='top_size', type=int, help='number of nodes in cluster to start submission')
+parser.add_argument('--sub-start-pause', dest='sub_start_pause', type=int, help='delay in ms before task submission after cluster reached specified size')
+parser.add_argument('--tasks-num', dest='tasks_num', type=int, help='number of tasks to submit')
+parser.add_argument('--submitters', dest='submitters', type=int, help='number of submitter nodes')
 parser.add_argument('--kill', dest='kill', action='store_true', help='stop all nodes')
 parser.add_argument('--kill-rmt', dest='kill_rmt', action='store_true', help='stop all nodes remotely')
 parser.add_argument('--get-logs', dest='get_logs', action='store_true', help='get all logs')
@@ -40,6 +43,7 @@ PUB_IPS = args.pub_ips
 START = args.start
 EXECUTABLE_JAR = "metacache-test-1.0-SNAPSHOT.jar"
 INSTANCES = args.instances
+SUBMITTERS = args.submitters
 NONBLOCKING = not args.blocking
 PRIVATE_IPS = args.priv_ips
 LAUNCH_ONLY = args.launch_only
@@ -93,7 +97,7 @@ def build(proj_dir, overrides=[]):
     chback()
 
 
-def launch(proj_dir, main_class, params=[], nonblocking=False, instances=1):
+def launch(proj_dir, main_class, params=[], args=[1, 0, 1], nonblocking=False, instances=1):
     print "nonblocking=%s, instances=%d" % (nonblocking, instances)
     chdir(proj_dir + "/target")
     cmd = "java -cp " + EXECUTABLE_JAR
@@ -101,13 +105,18 @@ def launch(proj_dir, main_class, params=[], nonblocking=False, instances=1):
     for p in params:
         cmd += " -D" + p
 
+    cmd += " -DIGNITE_INSTANCE=?"
+
     cmd += " " + main_class
+    cmd += " " + " ".join(args)
     cmd += " >> /tmp/ignite/out.log 2>&1"
 
     call_cmd("rm /tmp/ignite/out.log")
     call_cmd("mkdir /tmp/ignite")
 
     for i in range(instances):
+        cmd.replace("?", str(i))
+
         if nonblocking:
             popen_cmd(cmd)
         else:
@@ -191,6 +200,15 @@ if not START:
     if args.mvn_override:
         cmd += " --mvn-override " + ' '.join(args.mvn_override)
 
+    if args.top_size:
+        cmd += " --top_size " + args.top_size
+
+    if args.sub_start_pause:
+        cmd += " --sub-start-pause " + args.sub_start_pause
+
+    if args.tasks_num:
+        cmd += " --tasks-num " + args.tasks_num
+
     remote_exec(cmd, nonblocking=True)
 
 else:
@@ -207,10 +225,37 @@ else:
         build(proj_dir, over)
 
     if not BUILD_ONLY:
-        launch(proj_dir,
-               "org.apache.ignite.ComputeNode",
-               ["IGNITE_TEST_IPS=" + PRIVATE_IPS],
-               nonblocking=NONBLOCKING,
-               instances=INSTANCES)
+        arg = []
+
+        arg += args.top_size if args.top_size else 1
+        arg += args.sub_start_pause if args.sub_start_pause else 0
+        arg += args.tasks_num if args.tasks_num else 1
+
+        submitters = SUBMITTERS if SUBMITTERS else 0
+        instances = INSTANCES if INSTANCES else 1
+
+        instances -= submitters
+
+        # Start submitters
+        if submitters > 0:
+            launch(proj_dir=proj_dir,
+                   main_class="org.apache.ignite.SubmitterNode",
+                   params=["IGNITE_TEST_IPS=" + PRIVATE_IPS],
+                   args=arg,
+                   nonblocking=NONBLOCKING,
+                   instances=INSTANCES)
+        else:
+            print "No submitters set"
+
+        # Start compute nodes
+        if instances > 0:
+            launch(proj_dir=proj_dir,
+                   main_class="org.apache.ignite.ComputeNode",
+                   params=["IGNITE_TEST_IPS=" + PRIVATE_IPS],
+                   args=arg,
+                   nonblocking=NONBLOCKING,
+                   instances=INSTANCES)
+        else:
+            print "No compute nodes set"
 
 
