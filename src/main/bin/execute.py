@@ -31,6 +31,7 @@ parser.add_argument('--top-size', dest='top_size', type=int, help='number of nod
 parser.add_argument('--sub-start-pause', dest='sub_start_pause', type=int, help='delay in ms before task submission after cluster reached specified size')
 parser.add_argument('--tasks-num', dest='tasks_num', type=int, help='number of tasks to submit')
 parser.add_argument('--submitters', dest='submitters', type=int, help='number of submitter nodes')
+parser.add_argument('--exec-rmt', dest='exec_rmt', help='execute command remotely')
 parser.add_argument('--kill', dest='kill', action='store_true', help='stop all nodes')
 parser.add_argument('--kill-rmt', dest='kill_rmt', action='store_true', help='stop all nodes remotely')
 parser.add_argument('--get-logs', dest='get_logs', action='store_true', help='get all logs')
@@ -206,6 +207,10 @@ if args.tdump_rmt:
     upload(CUR_FILE_PATH)
     cmd = "/home/ubuntu/" + CUR_FILE_NAME + " --tdump"
     remote_exec(cmd, nonblocking=False)
+    exit(0)
+
+if args.exec_rmt:
+    remote_exec(args.exec_rmt, nonblocking=False)
     exit(0)
 
 if not START:
