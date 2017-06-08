@@ -9,7 +9,7 @@
 import os
 import sys
 import argparse
-from subprocess import call, Popen
+from subprocess import call, Popen, PIPE
 
 CUR_FILE_PATH = os.path.abspath(__file__)
 CUR_FILE_NAME = os.path.basename(__file__)
@@ -34,6 +34,8 @@ parser.add_argument('--submitters', dest='submitters', type=int, help='number of
 parser.add_argument('--kill', dest='kill', action='store_true', help='stop all nodes')
 parser.add_argument('--kill-rmt', dest='kill_rmt', action='store_true', help='stop all nodes remotely')
 parser.add_argument('--get-logs', dest='get_logs', action='store_true', help='get all logs')
+parser.add_argument('--tdump', dest='tdump', action='store_true', help='get thread dumps')
+parser.add_argument('--tdump-rmt', dest='tdump_rmt', action='store_true', help='get thread dumps remotely')
 parser.add_argument('--mvn-override', dest='mvn_override', nargs="*", help='override maven properties')
 
 args = parser.parse_args()
@@ -97,6 +99,24 @@ def build(proj_dir, overrides=[]):
     chback()
 
 
+def process_ids(keyword):
+    res = Popen("pgrep -f " + keyword, shell=True, stdout=PIPE)
+
+    ids = []
+
+    for line in res.stdout:
+        line = line.strip()
+        if line.isdigit():
+            ids.append(int(line))
+
+    return ids
+
+
+def tdump(pids=[], dir="."):
+    for pid in pids:
+        call_cmd("jstack " + str(pid) + " > " + dir + "/ignite-stack-" + str(pid) + ".log")
+
+
 def launch(proj_dir, main_class, params=[], args=[1, 0, 1], nonblocking=False, instances=1):
     print "nonblocking=%s, instances=%d" % (nonblocking, instances)
     chdir(proj_dir + "/target")
@@ -108,19 +128,19 @@ def launch(proj_dir, main_class, params=[], args=[1, 0, 1], nonblocking=False, i
     cmd += " -DIGNITE_INSTANCE=?"
 
     cmd += " " + main_class
-    cmd += " " + " ".join(args)
+    cmd += " " + " ".join(str(x) for x in args)
     cmd += " >> /tmp/ignite/out.log 2>&1"
 
     call_cmd("rm /tmp/ignite/out.log")
     call_cmd("mkdir /tmp/ignite")
 
     for i in range(instances):
-        cmd.replace("?", str(i))
+        cmd0 = cmd.replace("?", str(i))
 
         if nonblocking:
-            popen_cmd(cmd)
+            popen_cmd(cmd0)
         else:
-            call_cmd(cmd)
+            call_cmd(cmd0)
 
     chback()
 
@@ -158,17 +178,34 @@ def remote_exec(cmd, nonblocking=True):
 
 print args
 
+repo_dir = os.path.expanduser("/tmp/repo")
+proj_dir = repo_dir + "/" + REPO_DIR_NAME
+
 if args.kill:
-    call_cmd("pkill -f ComputeNode")
-    call_cmd("pkill -f SubmitterNode")
+    call_cmd("pkill -9 -f ComputeNode")
+    call_cmd("pkill -9 -f SubmitterNode")
     exit(0)
 
 if args.kill_rmt:
-    remote_exec("pkill -f ComputeNode && pkill -f SubmitterNode", nonblocking=False)
+    remote_exec("pkill -9 -f ComputeNode", nonblocking=False)
+    remote_exec("pkill -9 -f SubmitterNode", nonblocking=False)
     exit(0)
 
 if GET_LOGS:
-    download("/tmp/ignite/out.log", ".")
+    # download("/tmp/ignite/out.log", ".")
+    download("'/tmp/repo/metacache-test/target/ignite-*.log'", ".")
+    exit(0)
+
+if args.tdump:
+    target_dir = proj_dir + "/target"
+    tdump(process_ids("SubmitterNode"), target_dir)
+    tdump(process_ids("ComputeNode"), target_dir)
+    exit(0)
+
+if args.tdump_rmt:
+    upload(CUR_FILE_PATH)
+    cmd = "/home/ubuntu/" + CUR_FILE_NAME + " --tdump"
+    remote_exec(cmd, nonblocking=False)
     exit(0)
 
 if not START:
@@ -200,21 +237,21 @@ if not START:
     if args.mvn_override:
         cmd += " --mvn-override " + ' '.join(args.mvn_override)
 
+    if args.submitters:
+        cmd += " --submitters " + str(args.submitters)
+
     if args.top_size:
-        cmd += " --top_size " + args.top_size
+        cmd += " --top-size " + str(args.top_size)
 
     if args.sub_start_pause:
-        cmd += " --sub-start-pause " + args.sub_start_pause
+        cmd += " --sub-start-pause " + str(args.sub_start_pause)
 
     if args.tasks_num:
-        cmd += " --tasks-num " + args.tasks_num
+        cmd += " --tasks-num " + str(args.tasks_num)
 
     remote_exec(cmd, nonblocking=True)
 
 else:
-    repo_dir = os.path.expanduser("/tmp/repo")
-    proj_dir = repo_dir + "/" + REPO_DIR_NAME
-
     if not LAUNCH_ONLY:
         clone(repo_dir)
         over = []
@@ -225,11 +262,11 @@ else:
         build(proj_dir, over)
 
     if not BUILD_ONLY:
-        arg = []
-
-        arg += args.top_size if args.top_size else 1
-        arg += args.sub_start_pause if args.sub_start_pause else 0
-        arg += args.tasks_num if args.tasks_num else 1
+        arg = [
+            args.top_size if args.top_size else 1,
+            args.sub_start_pause if args.sub_start_pause else 0,
+            args.tasks_num if args.tasks_num else 1
+        ]
 
         submitters = SUBMITTERS if SUBMITTERS else 0
         instances = INSTANCES if INSTANCES else 1
@@ -243,7 +280,7 @@ else:
                    params=["IGNITE_TEST_IPS=" + PRIVATE_IPS],
                    args=arg,
                    nonblocking=NONBLOCKING,
-                   instances=INSTANCES)
+                   instances=submitters)
         else:
             print "No submitters set"
 
@@ -254,7 +291,7 @@ else:
                    params=["IGNITE_TEST_IPS=" + PRIVATE_IPS],
                    args=arg,
                    nonblocking=NONBLOCKING,
-                   instances=INSTANCES)
+                   instances=instances)
         else:
             print "No compute nodes set"
 
