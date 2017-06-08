@@ -53,21 +53,28 @@ public class SubmitterNode {
                                 }
 
                                 for (IgniteFuture<Response> fut : futs)
-                                    fut.get();
+                                    try {
+                                        fut.get();
+                                    }
+                                    catch (IgniteException e) {
+                                        ignite.log().error("Error executing job", e);
+                                    }
+
+                                ignite.log().info("== Submission completed");
                             }
                             catch (InterruptedException e) {
-                                e.printStackTrace();
+                                ignite.log().error("Interrupted job execution", e);
                             }
                             finally {
-                                if (compute != null) {
-                                    compute.broadcast(new IgniteRunnable() {
-                                        @Override public void run() {
-                                            Ignition.localIgnite().close();
-                                        }
-                                    });
-
-                                    ignite.close();
-                                }
+//                                if (compute != null) {
+//                                    compute.broadcast(new IgniteRunnable() {
+//                                        @Override public void run() {
+//                                            Ignition.localIgnite().close();
+//                                        }
+//                                    });
+//
+//                                    ignite.close();
+//                                }
 
                             }
 

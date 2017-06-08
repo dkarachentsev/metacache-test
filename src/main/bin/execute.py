@@ -9,6 +9,7 @@
 import os
 import sys
 import argparse
+import time
 from subprocess import call, Popen, PIPE
 
 CUR_FILE_PATH = os.path.abspath(__file__)
@@ -118,7 +119,7 @@ def tdump(pids=[], dir="."):
         call_cmd("jstack " + str(pid) + " > " + dir + "/ignite-stack-" + str(pid) + ".log")
 
 
-def launch(proj_dir, main_class, params=[], args=[1, 0, 1], nonblocking=False, instances=1):
+def launch(proj_dir, main_class, params=[], args=[1, 0, 1], nonblocking=False, instances=1, start_cnt=0):
     print "nonblocking=%s, instances=%d" % (nonblocking, instances)
     chdir(proj_dir + "/target")
     cmd = "java -cp " + EXECUTABLE_JAR
@@ -135,7 +136,7 @@ def launch(proj_dir, main_class, params=[], args=[1, 0, 1], nonblocking=False, i
     call_cmd("rm /tmp/ignite/out.log")
     call_cmd("mkdir /tmp/ignite")
 
-    for i in range(instances):
+    for i in range(start_cnt, instances + start_cnt):
         cmd0 = cmd.replace("?", str(i))
 
         if nonblocking:
@@ -285,18 +286,23 @@ else:
                    params=["IGNITE_TEST_IPS=" + PRIVATE_IPS],
                    args=arg,
                    nonblocking=NONBLOCKING,
-                   instances=submitters)
+                   instances=submitters,
+                   start_cnt=0)
         else:
             print "No submitters set"
 
         # Start compute nodes
         if instances > 0:
+            print "Sleep for 30 secs before start compute nodes"
+            time.sleep(30)
+
             launch(proj_dir=proj_dir,
                    main_class="org.apache.ignite.ComputeNode",
                    params=["IGNITE_TEST_IPS=" + PRIVATE_IPS],
                    args=arg,
                    nonblocking=NONBLOCKING,
-                   instances=instances)
+                   instances=instances,
+                   start_cnt=submitters)
         else:
             print "No compute nodes set"
 
