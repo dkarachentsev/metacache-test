@@ -121,8 +121,15 @@ def tdump(pids=[], dir="."):
 
 def launch(proj_dir, main_class, params=[], args=[1, 0, 1], nonblocking=False, instances=1, start_cnt=0):
     print "nonblocking=%s, instances=%d" % (nonblocking, instances)
-    chdir(proj_dir + "/target")
-    cmd = "java -cp " + EXECUTABLE_JAR
+    target = proj_dir + "/target"
+    chdir(target)
+    JVM_OPS = "-Xms1g -Xmx1g -XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:+UseTLAB -XX:NewSize=128m " \
+              "-XX:MaxNewSize=128m -XX:MaxTenuringThreshold=0 -XX:SurvivorRatio=1024 " \
+              "-XX:+UseCMSInitiatingOccupancyOnly -XX:CMSInitiatingOccupancyFraction=60 -XX:+DisableExplicitGC " \
+              "-XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+UseGCLogFileRotation " \
+              "-XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=100M -Xloggc:" + target + "/ignite-gc-?.log"
+
+    cmd = "java " + JVM_OPS + " -cp " + EXECUTABLE_JAR
 
     for p in params:
         cmd += " -D" + p
@@ -131,7 +138,7 @@ def launch(proj_dir, main_class, params=[], args=[1, 0, 1], nonblocking=False, i
 
     cmd += " " + main_class
     cmd += " " + " ".join(str(x) for x in args)
-    cmd += " >> /tmp/ignite/out.log 2>&1"
+    cmd += " >> /tmp/ignite/out.log 2>&1 &"
 
     call_cmd("rm /tmp/ignite/out.log")
     call_cmd("mkdir /tmp/ignite")
@@ -195,13 +202,17 @@ if args.kill_rmt:
 
 if GET_LOGS:
     # download("/tmp/ignite/out.log", ".")
-    download("'/tmp/repo/metacache-test/target/ignite-*.log'", ".")
+    arch = "/tmp/repo/metacache-test/target/ignite-logs.tar.xz"
+    target = "/tmp/repo/metacache-test/target/"
+    remote_exec("tar -J -cvf " + arch + " " + target + "ignite-*log*", nonblocking=False)
+    download("'" + arch + "'", ".")
+    remote_exec("rm -f " + arch, nonblocking=False)
     exit(0)
 
 if args.tdump:
     target_dir = proj_dir + "/target"
-    tdump(process_ids("SubmitterNode"), target_dir)
-    tdump(process_ids("ComputeNode"), target_dir)
+    tdump(list(set(process_ids("SubmitterNode")).intersection(process_ids("SubmitterNode"))), target_dir)
+    tdump(list(set(process_ids("ComputeNode")).intersection(process_ids("ComputeNode"))), target_dir)
     exit(0)
 
 if args.tdump_rmt:

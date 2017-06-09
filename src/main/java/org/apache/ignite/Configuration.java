@@ -35,6 +35,7 @@ public class Configuration {
         cfg.setPublicThreadPoolSize(100);
         cfg.setSystemThreadPoolSize(16);
         cfg.setMarshaller(new BinaryMarshaller());
+        cfg.setFailureDetectionTimeout(60_000);
 
         Map<String, Object> attrs = new HashMap<>();
         attrs.put("submitter", submitter);
